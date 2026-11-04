@@ -25,7 +25,7 @@
   .suits{letter-spacing:.5em;color:var(--gold);font-size:13px;opacity:.85}
   h1{font-family:"Playfair Display",serif;font-size:34px;line-height:1.05;margin:8px 0 6px}
   .sub{color:var(--muted);font-size:14px}
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:20px 0 18px}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:20px 0 18px}
   .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center}
   .stat b{display:block;font-size:20px;font-weight:800}
   .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
@@ -172,7 +172,7 @@ $("#season").textContent = SEASON+" · "+GAMES.length+" games";
 $("#updated").textContent = "Updated "+UPDATED;
 const pot = GAMES.reduce((s,g)=>s+g.players.reduce((t,p)=>t+p[1],0),0);
 const bigPot = Math.max(...GAMES.map(g=>g.players.reduce((t,p)=>t+p[1],0)));
-$("#stats").innerHTML = [["Games",GAMES.length],["Total pot",plain(pot)],["Biggest pot",plain(bigPot)]]
+$("#stats").innerHTML = [["Total pot",plain(pot)],["Biggest pot",plain(bigPot)]]
   .map(([l,v])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
 
 function spark(run){
