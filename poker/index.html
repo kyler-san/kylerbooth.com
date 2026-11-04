@@ -218,7 +218,7 @@ function rsvp(game){
   const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
   const counts={};GAMES.forEach(g=>g.players.forEach(([n])=>counts[n]=(counts[n]||0)+1));
   const extra=(store.get("poker-extra-names")||"").split("|").filter(Boolean);
-  const roster=[...new Set([...Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b)),...extra])];
+  const roster=[...new Set([...Object.keys(counts),...extra])].sort((a,b)=>a.localeCompare(b));
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const key="poker-rsvp-"+game;
   let mine=store.get(key)||"";
@@ -229,7 +229,7 @@ function rsvp(game){
       <div class="rv-msg">${msg||(mine?"Tap your name again if you can't make it.":"")}</div>`;
     box.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>send(b.dataset.n));
     $("#rv-add").onclick=()=>{const n=(prompt("Your name (first name + last initial):")||"").replace(/\s+/g," ").trim().slice(0,30);
-      if(!n)return; if(!roster.includes(n)){roster.push(n);store.set("poker-extra-names",[...extra,n].join("|"))} send(n,true)};
+      if(!n)return; if(!roster.includes(n)){roster.push(n);roster.sort((a,b)=>a.localeCompare(b));store.set("poker-extra-names",[...extra,n].join("|"))} send(n,true)};
   }
   async function send(n,forceIn){
     const goingIn=forceIn||n!==mine;

@@ -117,7 +117,7 @@ function draw(){
     return;
   }
   const tin=S.players.reduce((t,p)=>t+inOf(p),0), tout=S.players.reduce((t,p)=>t+(p.out||0),0);
-  const names=[...new Set([...rsvpIn,...ROSTER,...extraNames])].filter(n=>!S.players.some(p=>p.name.toLowerCase()===n.toLowerCase()));
+  const names=[...new Set([...rsvpIn,...ROSTER,...extraNames])].sort((a,b)=>a.localeCompare(b)).filter(n=>!S.players.some(p=>p.name.toLowerCase()===n.toLowerCase()));
   const done=S.players.length>0&&!playing().length;
 
   let h=`<div class="top"><h1>Game Night</h1><input type="date" id="date" value="${S.date}"></div>
