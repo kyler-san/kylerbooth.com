@@ -92,24 +92,14 @@
   .next .count{display:inline-block;margin-top:12px;background:var(--gold);color:#1d1606;font-weight:800;font-size:13px;
     padding:6px 14px;border-radius:999px}
   .next .after{margin-top:12px;font-size:12px;color:var(--muted)}
-  .rsvp{margin-top:16px;border-top:1px solid var(--line);padding-top:14px;text-align:left}
-  .rsvp .who{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-  .rsvp select,.rsvp input{flex:1;min-width:0;background:rgba(0,0,0,.25);color:var(--ink);border:1px solid var(--line);
-    border-radius:10px;padding:10px;font:500 15px Inter,sans-serif}
-  .rsvp .btns{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px}
-  .rsvp .btns button{border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);border-radius:12px;
-    padding:12px 4px;font:700 14px Inter,sans-serif;cursor:pointer}
-  .rsvp .btns button.sel{background:var(--gold);color:#1d1606;border-color:var(--gold)}
-  .rsvp .btns button:disabled{opacity:.5}
-  .rsvp .plus{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:14px;color:var(--muted)}
-  .rsvp .plus .ctl{display:flex;align-items:center;gap:10px}
-  .rsvp .plus button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:rgba(0,0,0,.2);
-    color:var(--ink);font:700 18px Inter,sans-serif;cursor:pointer;line-height:1}
-  .rsvp .plus b{color:var(--ink);font-size:16px;min-width:22px;text-align:center}
-  .rsvp .msg{font-size:12px;color:var(--muted);margin-top:8px;min-height:15px;text-align:center}
-  .rsvp .list{margin-top:10px;font-size:13px;line-height:1.5}
-  .rsvp .list b{color:var(--gold);font-weight:700}
-  .rsvp .list .none{color:var(--muted)}
+  .rsvp{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+  .rv-q{font-weight:700;font-size:15px;margin-bottom:10px}
+  .rv-names{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+  .rv-n{border:1px solid var(--line);background:rgba(0,0,0,.22);color:var(--ink);border-radius:999px;padding:9px 13px;
+    font:600 14px Inter,sans-serif;cursor:pointer}
+  .rv-n.on{background:var(--gold);color:#1d1606;border-color:var(--gold)}
+  .rv-n.add{color:var(--muted);border-style:dashed}
+  .rv-msg{font-size:12px;color:var(--muted);margin-top:10px;min-height:15px}
   footer{text-align:center;color:var(--muted);font-size:12px;margin-top:28px}
 </style>
 </head>
@@ -227,58 +217,30 @@ function rsvp(game){
   const box=$("#rsvp"), API="/api/rsvp";
   const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
   const counts={};GAMES.forEach(g=>g.players.forEach(([n])=>counts[n]=(counts[n]||0)+1));
-  const roster=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b));
+  const extra=(store.get("poker-extra-names")||"").split("|").filter(Boolean);
+  const roster=[...new Set([...Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b)),...extra])];
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  let me=store.get("poker-name")||"", responses=[], guests=0;
-  const showG=()=>$("#rv-g").textContent="+"+guests;
-  const LABEL={in:"I'm in 👍",maybe:"Maybe 🤔",out:"Can't make it"};
-  box.innerHTML=`<div class="who"><select id="rv-name"><option value="">Who are you?</option>
-      ${roster.map(n=>`<option>${esc(n)}</option>`).join("")}<option value="__other">Someone else…</option></select>
-      <input id="rv-other" placeholder="Your name" maxlength="30" style="display:none"></div>
-    <div class="btns">${Object.entries(LABEL).map(([k,v])=>`<button data-s="${k}">${v}</button>`).join("")}</div>
-    <div class="plus">Bringing a friend?<div class="ctl"><button data-g="-1" aria-label="fewer guests">−</button><b id="rv-g">+0</b><button data-g="1" aria-label="more guests">+</button></div></div>
-    <div class="msg" id="rv-msg"></div><div class="list" id="rv-list"></div>`;
-  const sel=$("#rv-name"), other=$("#rv-other"), msg=$("#rv-msg");
-  if(me){ if(roster.includes(me)) sel.value=me; else {sel.value="__other";other.style.display="";other.value=me} }
-  sel.onchange=()=>{other.style.display=sel.value==="__other"?"":"none"; paint.touched=false; guests=0; showG(); if(sel.value!=="__other"){me=sel.value;paint()} else other.focus()};
-  other.oninput=()=>{me=other.value.trim();paint()};
-  const name=()=>sel.value==="__other"?other.value.trim():sel.value;
-  function paint(){
-    const mine=responses.find(r=>r.name.toLowerCase()===(name()||"").toLowerCase());
-    box.querySelectorAll(".btns button").forEach(b=>b.classList.toggle("sel",!!mine&&mine.status===b.dataset.s));
-    if(mine&&!paint.touched){guests=mine.guests||0;showG()}
-    const grp=s=>responses.filter(r=>r.status===s).sort((a,b)=>a.at.localeCompare(b.at)).map(r=>esc(r.name)+(r.guests?` +${r.guests}`:""));
-    const ins=grp("in"),mb=grp("maybe"),out=grp("out");
-    const headcount=responses.filter(r=>r.status==="in").reduce((t,r)=>t+1+(r.guests||0),0);
-    $("#rv-list").innerHTML=!responses.length?`<span class="none">No RSVPs yet. Be the first.</span>`:
-      `<div><b>In (${headcount}):</b> ${ins.join(", ")||"—"}</div>`+
-      (mb.length?`<div><b>Maybe:</b> ${mb.join(", ")}</div>`:"")+
-      (out.length?`<div><b>Out:</b> ${out.join(", ")}</div>`:"");
+  const key="poker-rsvp-"+game;
+  let mine=store.get(key)||"";
+  function draw(msg){
+    box.innerHTML=`<div class="rv-q">${mine?`You're in, ${esc(mine.split(" ")[0])} 👍`:"Coming? Tap your name."}</div>
+      <div class="rv-names">${roster.map(n=>`<button class="rv-n ${n===mine?"on":""}" data-n="${esc(n)}">${n===mine?"✓ ":""}${esc(n)}</button>`).join("")}
+        <button class="rv-n add" id="rv-add">+ Not listed</button></div>
+      <div class="rv-msg">${msg||(mine?"Tap your name again if you can't make it.":"")}</div>`;
+    box.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>send(b.dataset.n));
+    $("#rv-add").onclick=()=>{const n=(prompt("Your name (first name + last initial):")||"").replace(/\s+/g," ").trim().slice(0,30);
+      if(!n)return; if(!roster.includes(n)){roster.push(n);store.set("poker-extra-names",[...extra,n].join("|"))} send(n,true)};
   }
-  async function load(){
-    try{const r=await fetch(API+"?game="+game,{cache:"no-store"});if(!r.ok)throw 0;responses=(await r.json()).responses||[];paint()}
-    catch(e){$("#rv-list").innerHTML=`<span class="none">RSVPs aren't loading right now.</span>`}
-  }
-  box.querySelectorAll(".plus button").forEach(b=>b.onclick=async()=>{
-    guests=Math.max(0,Math.min(5,guests+Number(b.dataset.g)));showG();paint.touched=true;
-    const n=name(),mine=responses.find(r=>r.name.toLowerCase()===(n||"").toLowerCase());
-    if(mine&&mine.status!=="out")save(n,mine.status);
-  });
-  async function save(n,status){
-    box.querySelectorAll("button").forEach(x=>x.disabled=true); msg.textContent="Saving…";
+  async function send(n,forceIn){
+    const goingIn=forceIn||n!==mine;
+    const prev=mine; mine=goingIn?n:""; draw("Saving…");
     try{
-      const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({game,name:n,status,guests:status==="out"?0:guests})});
-      if(!r.ok)throw 0; responses=(await r.json()).responses||[]; store.set("poker-name",n); me=n;
-      const g=status!=="out"&&guests?` (+${guests})`:"";
-      msg.textContent=status==="in"?`You're in${g}. See you there.`:status==="maybe"?`Got it, maybe${g}.`:"Got it, you're out this time."; paint();
-    }catch(e){msg.textContent="Couldn't save. Try again, or just text Kyler."}
-    box.querySelectorAll("button").forEach(x=>x.disabled=false);
+      if(prev&&prev!==n) await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({game,name:prev,status:"out"})});
+      const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({game,name:n,status:goingIn?"in":"out"})});
+      if(!r.ok)throw 0; store.set(key,mine); draw(goingIn?"See you there.":"No worries, you're off the list.");
+    }catch(e){mine=prev; draw("Couldn't save. Try again, or just text Kyler.")}
   }
-  box.querySelectorAll(".btns button").forEach(b=>b.onclick=()=>{
-    const n=name(); if(!n){msg.textContent="Pick your name first.";sel.focus();return}
-    save(n,b.dataset.s);
-  });
-  load();
+  draw();
 }
 $("#season").textContent = SEASON+" · "+GAMES.length+" games";
 $("#updated").textContent = "Last game "+fmtDate(GAMES[0].date)+" · updated "+UPDATED;
@@ -363,6 +325,7 @@ function withWithout(a,b){
   const avg=x=>x.reduce((t,v)=>t+v,0)/x.length;
   return w.length&&wo.length?{w:avg(w),wo:avg(wo),nw:w.length,nwo:wo.length}:null;
 }
+function shortName(n){const f=n.split(" ")[0];const all=[...new Set(GAMES.flatMap(g=>g.players.map(p=>p[0])))];return all.filter(x=>x.split(" ")[0]===f).length>1?n:f}
 function renderH2H(){
   const names=[...new Set(GAMES.flatMap(g=>g.players.map(p=>p[0])))];
   const pairs=[];
@@ -380,28 +343,29 @@ function renderH2H(){
     if(a===b){out.innerHTML=`<div class="card small">Pick two different players.</div>`;return}
     const r=pairStats(a,b),n=r.nights.length;
     if(!n){out.innerHTML=`<div class="card small">${a} and ${b} haven't played the same night yet.</div>`;return}
-    const ahead=r.na>r.nb?a:r.nb>r.na?b:null;
+    const fa=shortName(a), fb=shortName(b);
+    const verdict=r.wa===r.wb?`All square after ${n} night${n>1?"s":""} together`:`${r.wa>r.wb?fa:fb} has finished ahead more often`;
     const facts=[];
-    facts.push(`Nights at the same table: <b>${n}</b>${r.ties?` (${r.ties} tie${r.ties>1?"s":""})`:""}`);
-    facts.push(`In those nights: ${a} <b class="${r.na>=0?"up":"down"}">${money(r.na)}</b> · ${b} <b class="${r.nb>=0?"up":"down"}">${money(r.nb)}</b>`);
-    if(ahead)facts.push(`<b>${ahead}</b> is up <b>${plain(Math.abs(r.na-r.nb))}</b> on the other across shared nights`);
+    facts.push(`Played the same night <b>${n}</b> time${n>1?"s":""}${r.ties?` (${r.ties} even)`:""}.`);
+    facts.push(`Money won or lost on those nights: ${fa} <b class="${r.na>=0?"up":"down"}">${money(r.na)}</b>, ${fb} <b class="${r.nb>=0?"up":"down"}">${money(r.nb)}</b>.`);
     const big=r.nights.map(x=>({...x,gap:x.a-x.b})).sort((x,y)=>Math.abs(y.gap)-Math.abs(x.gap))[0];
-    if(big&&big.gap)facts.push(`Biggest gap: ${fmtDate(big.date)}, ${big.gap>0?a:b} beat ${big.gap>0?b:a} by ${plain(Math.abs(big.gap))}`);
-    if(r.koab||r.koba)facts.push(`Knockouts: ${a} busted ${b} <b>${r.koab}</b>× · ${b} busted ${a} <b>${r.koba}</b>×`);
-    [[a,b],[b,a]].forEach(([x,y])=>{const ww=withWithout(x,y);if(ww)facts.push(`With ${y} at the table, ${x} averages <b class="${ww.w>=0?"up":"down"}">${money(ww.w)}</b>/night; without, <b class="${ww.wo>=0?"up":"down"}">${money(ww.wo)}</b>`)});
+    if(big&&big.gap)facts.push(`Most lopsided night: ${fmtDate(big.date)}, when ${big.gap>0?fa:fb} finished <b>${plain(Math.abs(big.gap))}</b> ahead of ${big.gap>0?fb:fa}.`);
+    if(r.koab)facts.push(`${fa} has knocked ${fb} out <b>${r.koab}</b> time${r.koab>1?"s":""}.`);
+    if(r.koba)facts.push(`${fb} has knocked ${fa} out <b>${r.koba}</b> time${r.koba>1?"s":""}.`);
     out.innerHTML=`<div class="card"><div class="score">
         <div><div class="big ${r.wa>r.wb?"lead":""}">${r.wa}</div><div class="nm">${a}</div></div>
         <div class="dash">–</div>
         <div><div class="big ${r.wb>r.wa?"lead":""}">${r.wb}</div><div class="nm">${b}</div></div></div>
-        <div class="score"><div class="sub2" style="grid-column:1/-1">Nights won head-to-head (better result that night)</div></div>
+        <div class="sub2" style="text-align:center;margin-top:6px">Nights each one finished ahead of the other · ${verdict}</div>
         <ul class="facts">${facts.map(f=>`<li>${f}</li>`).join("")}</ul>
-        <table style="margin-top:8px"><tr><th>Night</th><th>${a}</th><th>${b}</th></tr>
-        ${r.nights.slice().reverse().map(x=>`<tr><td>${fmtDate(x.date)}</td><td class="${x.a>=0?"up":"down"}">${money(x.a)}</td><td class="${x.b>=0?"up":"down"}">${money(x.b)}</td></tr>`).join("")}</table></div>`;
+        <table style="margin-top:8px"><tr><th>Night</th><th>${fa}</th><th>${fb}</th></tr>
+        ${r.nights.slice().reverse().map(x=>`<tr><td>${fmtDate(x.date)}${x.a>x.b?` · ${fa}`:x.b>x.a?` · ${fb}`:""}</td><td class="${x.a>=0?"up":"down"}">${money(x.a)}</td><td class="${x.b>=0?"up":"down"}">${money(x.b)}</td></tr>`).join("")}</table></div>`;
   };
   A.onchange=B.onchange=show; show();
   $("#rivals").innerHTML=pairs.length?pairs.slice(0,6).map(p=>{
-    const lead=p.r.wa===p.r.wb?"all square":(p.r.wa>p.r.wb?p.a:p.b)+" leads";
-    return `<div class="card rival" data-a="${p.a}" data-b="${p.b}"><b>${p.a} vs ${p.b}</b><span>${p.r.wa}–${p.r.wb} · ${lead} · ${p.r.nights.length} nights</span></div>`}).join("")
+    const hi=Math.max(p.r.wa,p.r.wb),lo=Math.min(p.r.wa,p.r.wb);
+    const lead=p.r.wa===p.r.wb?`Tied ${hi}–${lo}`:`${shortName(p.r.wa>p.r.wb?p.a:p.b)} leads ${hi}–${lo}`;
+    return `<div class="card rival" data-a="${p.a}" data-b="${p.b}"><b>${p.a} vs ${p.b}</b><span>${lead}</span></div>`}).join("")
     :`<div class="card small">Rivalries show up once two players have shared 2+ nights.</div>`;
   document.querySelectorAll(".rival").forEach(el=>el.onclick=()=>{A.value=el.dataset.a;B.value=el.dataset.b;show();window.scrollTo({top:$("#h2h").offsetTop-10,behavior:"smooth"})});
 }
