@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Game Night</title>
+<meta name="theme-color" content="#0f2a1d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --felt:#0f2a1d; --card:#183f2c; --line:rgba(255,255,255,.09);
+    --ink:#f4efe3; --muted:#a9b8ac; --gold:#e7c36a; --up:#5fd68a; --down:#ff7a6b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:radial-gradient(120% 80% at 50% 0%, #1b4a33 0%, var(--felt) 60%) fixed, var(--felt);
+    color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  .wrap{max-width:560px;margin:0 auto;padding:20px 16px 120px}
+  h1{font-family:"Playfair Display",serif;font-size:28px;margin:0}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+  .top input{background:rgba(0,0,0,.25);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px;font:600 14px Inter,sans-serif}
+  .sum{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+  .sum div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center}
+  .sum b{display:block;font-size:17px;font-weight:800}.sum span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
+  .add{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--ink);border-radius:999px;padding:8px 12px;font:600 13px Inter,sans-serif;cursor:pointer}
+  .chip.rsvp{border-color:var(--gold)}
+  .row2{display:flex;gap:6px;margin-top:8px}
+  input.t{flex:1;min-width:0;background:rgba(0,0,0,.25);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;font:500 15px Inter,sans-serif}
+  .btn{border:0;border-radius:10px;padding:10px 12px;font:700 14px Inter,sans-serif;cursor:pointer;background:rgba(0,0,0,.28);color:var(--ink);border:1px solid var(--line)}
+  .btn.gold{background:var(--gold);color:#1d1606;border-color:var(--gold)}
+  .btn.red{color:var(--down)}
+  .btn:disabled{opacity:.45}
+  .pl{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+  .pl .nm{font-weight:700;font-size:16px}
+  .pl .meta{font-size:12px;color:var(--muted)}
+  .pl .acts{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .badge{font-size:12px;font-weight:700;padding:4px 8px;border-radius:999px;background:rgba(0,0,0,.25)}
+  .badge.bust{color:var(--down)}.badge.cashed{color:var(--up)}
+  .pl.done{opacity:.72}
+  .pick{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+  h2{font-family:"Playfair Display",serif;font-size:20px;margin:20px 0 8px}
+  .lines{font-size:15px;line-height:1.7}
+  .warn{color:var(--down);font-size:13px;margin:6px 0}
+  .ok{color:var(--up);font-size:13px;margin:6px 0}
+  .muted{color:var(--muted);font-size:12px}
+  .seg{display:flex;background:rgba(0,0,0,.25);border-radius:999px;padding:3px;margin-top:8px}
+  .seg button{flex:1;border:0;background:none;color:var(--muted);font:600 13px Inter,sans-serif;padding:8px;border-radius:999px;cursor:pointer}
+  .seg button.on{background:var(--gold);color:#1d1606}
+  .bar{position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+    background:rgba(10,30,20,.92);backdrop-filter:blur(8px);border-top:1px solid var(--line)}
+  .bar .in{max-width:560px;margin:0 auto;display:flex;gap:8px;align-items:center}
+  .bar .st{flex:1;font-size:12px;color:var(--muted)}
+  a{color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="bar"><div class="in"><span class="st" id="st"></span><button class="btn" id="undo">↶ Undo</button></div></div>
+
+<script>
+const ROSTER=["David S.","Jon D.","Ricky A.","David F.","Jake Dun.","Kyler B.","Tommy B.","Nick G.","Taylor N.","Chris C.","James A.","Jake Dav.","Tyler V."];
+const $=s=>document.querySelector(s);
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const plain=n=>"$"+(Math.round(n*100)/100).toFixed(2).replace(/\.00$/,"");
+const money=n=>(n<0?"−":n>0?"+":"")+plain(Math.abs(n));
+const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const fresh=()=>({v:1,date:today(),buyin:25,food:0,foodMode:"rake",players:[],ko:[],bust:[],updatedAt:Date.now()});
+
+// host key: from #k=… once, then remembered on this phone
+let KEY=ls.get("poker-host-key")||"";
+const hk=location.hash.match(/k=([0-9a-f]{32})/);
+if(hk){KEY=hk[1];ls.set("poker-host-key",KEY);history.replaceState(null,"",location.pathname)}
+
+let S=JSON.parse(ls.get("poker-live")||"null")||fresh();
+let hist=[], ui={open:null,mode:null}, extraNames=[], rsvpIn=[], saveTimer=null, status="";
+
+function snap(){hist.push(JSON.stringify(S));if(hist.length>60)hist.shift()}
+function commit(){S.updatedAt=Date.now();ls.set("poker-live",JSON.stringify(S));draftSave();draw()}
+function setStatus(t){status=t;$("#st").textContent=t}
+function draftSave(){
+  clearTimeout(saveTimer);
+  if(!KEY){setStatus("Saved on this phone");return}
+  setStatus("Saving…");
+  saveTimer=setTimeout(async()=>{
+    try{const r=await fetch("/api/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({key:KEY,action:"draft",draft:S})});
+      setStatus(r.ok?"Backed up ✓":r.status===403?"Host key wrong: saved on this phone only":"Saved on this phone (backup failed)")}
+    catch(e){setStatus("Offline: saved on this phone")}
+  },1200);
+}
+$("#undo").onclick=()=>{if(!hist.length)return;S=JSON.parse(hist.pop());ui={open:null,mode:null};commit()};
+
+const inOf=p=>p.buys.reduce((t,v)=>t+v,0);
+const playing=()=>S.players.filter(p=>p.status==="in");
+
+function act(fn){snap();fn();ui={open:null,mode:null};commit()}
+function addPlayer(name){
+  name=name.replace(/\s+/g," ").trim().slice(0,30); if(!name)return;
+  if(S.players.some(p=>p.name.toLowerCase()===name.toLowerCase())){setStatus(name+" is already in");return}
+  act(()=>S.players.push({name,buys:[S.buyin],status:"in",out:null,by:null}));
+}
+
+function draw(){
+  const app=$("#app");
+  if(!KEY){app.innerHTML=`<div class="top"><h1>Game Night</h1></div>
+    <div class="card">Paste your host key to save nights to the leaderboard (you only do this once on this phone).
+    <div class="row2"><input class="t" id="key" placeholder="Host key" autocomplete="off"><button class="btn gold" id="ksave">Save</button></div>
+    <div class="muted" style="margin-top:8px">Or keep going without it: everything saves on this phone, and you can add the key before saving the night.</div>
+    <div class="row2"><button class="btn" id="kskip">Continue without key</button></div></div>`;
+    $("#ksave").onclick=()=>{const v=$("#key").value.trim();if(/^[0-9a-f]{32}$/.test(v)){KEY=v;ls.set("poker-host-key",v);draw()}else setStatus("That doesn't look like the key")};
+    $("#kskip").onclick=()=>{KEY="skip";draw()};
+    return;
+  }
+  const tin=S.players.reduce((t,p)=>t+inOf(p),0), tout=S.players.reduce((t,p)=>t+(p.out||0),0);
+  const names=[...new Set([...rsvpIn,...ROSTER,...extraNames])].filter(n=>!S.players.some(p=>p.name.toLowerCase()===n.toLowerCase()));
+  const done=S.players.length>0&&!playing().length;
+
+  let h=`<div class="top"><h1>Game Night</h1><input type="date" id="date" value="${S.date}"></div>
+  <div class="sum"><div><b>${plain(tin)}</b><span>Pot in</span></div><div><b>${plain(tout)}</b><span>Cashed</span></div>
+    <div><b>${plain(Math.max(0,tin-tout))}</b><span>On table</span></div><div><b>${playing().length}</b><span>Playing</span></div></div>
+
+  <div class="card"><div class="muted" style="margin-bottom:8px">Add a player (buys in for ${plain(S.buyin)})${rsvpIn.length?" · gold = RSVP'd in":""}</div>
+    <div class="add">${names.map(n=>`<button class="chip ${rsvpIn.includes(n)?"rsvp":""}" data-add="${esc(n)}">${esc(n)}</button>`).join("")}</div>
+    <div class="row2"><input class="t" id="newname" placeholder="New player name" maxlength="30"><button class="btn gold" id="addnew">Add</button></div>
+    <div class="row2 muted" style="align-items:center">Buy-in $<input class="t" id="buyin" type="number" inputmode="decimal" value="${S.buyin}" style="max-width:80px"></div>
+  </div>`;
+
+  S.players.forEach((p,i)=>{
+    const n=inOf(p), rb=p.buys.length-1;
+    const badge=p.status==="in"?`<span class="badge">Playing</span>`:p.status==="bust"?`<span class="badge bust">Busted${p.by?" by "+esc(p.by):""}</span>`:`<span class="badge cashed">Out ${plain(p.out)}</span>`;
+    h+=`<div class="card pl ${p.status==="in"?"":"done"}"><div><div class="nm">${esc(p.name)}</div>
+      <div class="meta">In ${plain(n)}${rb?` · ${rb} rebuy${rb>1?"s":""}`:""}${p.status!=="in"?` · net <span style="color:var(${(p.out||0)-n>=0?"--up":"--down"})">${money((p.out||0)-n)}</span>`:""}</div></div>${badge}
+      <div class="acts"><button class="btn" data-rebuy="${i}">+ Rebuy</button>
+        <button class="btn red" data-bust="${i}" ${p.status!=="in"?"disabled":""}>Bust</button>
+        <button class="btn" data-cash="${i}" ${p.status==="bust"?"disabled":""}>${p.status==="cashed"?"Edit out":"Cash out"}</button></div>`;
+    if(ui.open===i&&ui.mode==="bust"){
+      const others=playing().filter(q=>q!==p);
+      h+=`<div class="pick"><span class="muted" style="width:100%">Who knocked ${esc(p.name)} out?</span>
+        ${others.map(q=>`<button class="chip" data-by="${esc(q.name)}">${esc(q.name)}</button>`).join("")}
+        <button class="chip" data-by="">Not sure / skip</button></div>`;
+    }
+    if(ui.open===i&&ui.mode==="cash"){
+      h+=`<div class="pick"><input class="t" id="cashamt" type="number" inputmode="decimal" step="0.25" placeholder="Chip count $" value="${p.out??""}">
+        <button class="btn gold" id="cashok">Save</button></div>`;
+    }
+    h+=`</div>`;
+  });
+
+  // settle up
+  if(S.players.length){
+    const diff=Math.round((tout-tin)*100)/100;
+    const rake=S.foodMode==="rake"&&S.food>0&&tout>0?S.food/tout:0;
+    const pays=S.players.filter(p=>p.out>0).map(p=>({n:p.name,v:Math.round(p.out*(1-rake)*100)/100})).sort((a,b)=>b.v-a.v);
+    h+=`<h2>Settle up</h2><div class="card">
+      <div class="row2" style="align-items:center;margin-top:0"><span class="muted">Food $</span><input class="t" id="food" type="number" inputmode="decimal" value="${S.food||""}" placeholder="0"></div>
+      <div class="seg"><button data-fm="rake" class="${S.foodMode==="rake"?"on":""}">Rake it from cash-outs</button><button data-fm="host" class="${S.foodMode==="host"?"on":""}">I'm covering it</button></div>
+      ${!done?`<div class="muted" style="margin-top:10px">${playing().length} still playing. Payouts finalize when everyone's busted or cashed out.</div>`:""}
+      ${done&&diff!==0?`<div class="warn">Chips ${diff>0?"over":"short"} by ${plain(Math.abs(diff))} (cashed ${plain(tout)} vs ${plain(tin)} in). Recount or let the house absorb it.</div>`:""}
+      ${done&&diff===0?`<div class="ok">Chips balance ✓</div>`:""}
+      ${rake?`<div class="muted" style="margin-top:6px">Food rake: ${(rake*100).toFixed(1)}% of each cash-out</div>`:""}
+      <div class="lines" id="pays">${pays.map(x=>`${esc(x.n)} — <b>${plain(x.v)}</b>`).join("<br>")||'<span class="muted">No cash-outs yet</span>'}</div>
+      <div class="row2"><button class="btn" id="copy" ${pays.length?"":"disabled"}>Copy payouts</button>
+        <button class="btn gold" id="final" ${done?"":"disabled"}>Save night to leaderboard</button></div>
+    </div>
+    <div class="row2"><button class="btn red" id="reset">Start a new night</button></div>`;
+  }
+  h+=`<div class="muted" style="margin-top:14px;text-align:center"><a href="/poker/">Leaderboard</a></div>`;
+  app.innerHTML=h;
+
+  $("#date").onchange=e=>act(()=>S.date=e.target.value);
+  $("#buyin").onchange=e=>{const v=Number(e.target.value);if(v>0)act(()=>S.buyin=v)};
+  app.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>addPlayer(b.dataset.add));
+  $("#addnew").onclick=()=>addPlayer($("#newname").value);
+  $("#newname").onkeydown=e=>{if(e.key==="Enter")addPlayer(e.target.value)};
+  app.querySelectorAll("[data-rebuy]").forEach(b=>b.onclick=()=>{const p=S.players[+b.dataset.rebuy];
+    act(()=>{p.buys.push(S.buyin);if(p.status!=="in"){p.status="in";p.out=null;p.by=null}})});
+  app.querySelectorAll("[data-bust]").forEach(b=>b.onclick=()=>{const i=+b.dataset.bust;ui=ui.open===i&&ui.mode==="bust"?{open:null,mode:null}:{open:i,mode:"bust"};draw()});
+  app.querySelectorAll("[data-cash]").forEach(b=>b.onclick=()=>{const i=+b.dataset.cash;ui=ui.open===i&&ui.mode==="cash"?{open:null,mode:null}:{open:i,mode:"cash"};draw();const el=$("#cashamt");if(el)el.focus()});
+  app.querySelectorAll("[data-by]").forEach(b=>b.onclick=()=>{const p=S.players[ui.open],by=b.dataset.by;
+    act(()=>{p.status="bust";p.out=0;p.by=by||null;S.bust.push(p.name);if(by)S.ko.push([p.name,by])})});
+  const ok=$("#cashok"); if(ok){const go=()=>{const v=Number($("#cashamt").value);if(!(v>=0)||$("#cashamt").value==="")return;const p=S.players[ui.open];
+      act(()=>{p.status=v===0?"bust":"cashed";p.out=Math.round(v*100)/100;if(v===0)S.bust.push(p.name)})};
+    ok.onclick=go;$("#cashamt").onkeydown=e=>{if(e.key==="Enter")go()}}
+  const food=$("#food"); if(food)food.onchange=e=>act(()=>S.food=Math.max(0,Number(e.target.value)||0));
+  app.querySelectorAll("[data-fm]").forEach(b=>b.onclick=()=>act(()=>S.foodMode=b.dataset.fm));
+  const cp=$("#copy"); if(cp)cp.onclick=async()=>{const t=$("#pays").innerText.replace(/—/g,"-")+`\n(Poker ${S.date})`;
+    try{await navigator.clipboard.writeText(t);setStatus("Payouts copied")}catch(e){setStatus("Couldn't copy: long-press to select")}};
+  const fin=$("#final"); if(fin)fin.onclick=saveFinal;
+  const rs=$("#reset"); if(rs)rs.onclick=()=>{if(confirm("Clear this night and start fresh? (Undo can bring it back.)"))act(()=>{const d=fresh();Object.keys(S).forEach(k=>delete S[k]);Object.assign(S,d)})};
+}
+
+async function saveFinal(){
+  if(!KEY||KEY==="skip"){const k=prompt("Host key (from Claude):");if(!k||!/^[0-9a-f]{32}$/.test(k.trim()))return setStatus("Need the host key to save");KEY=k.trim();ls.set("poker-host-key",KEY)}
+  const tout=S.players.reduce((t,p)=>t+(p.out||0),0);
+  const rake=S.foodMode==="rake"&&S.food>0&&tout>0?S.food/tout:0;
+  let note="";
+  if(S.food>0)note=rake?`Food (${plain(S.food)}) covered by a ${(rake*100).toFixed(1)}% rake on cash-outs; results shown before rake.`:`Kyler covered food (${plain(S.food)}); not taken from the pot.`;
+  const game={date:S.date,players:S.players.map(p=>[p.name,inOf(p),p.out||0]),food:S.food||0,note,knockouts:S.ko,bustOrder:S.bust};
+  setStatus("Saving night…");
+  try{
+    const r=await fetch("/api/games",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({key:KEY,action:"final",game})});
+    if(r.status===403){ls.del("poker-host-key");KEY="";draw();return setStatus("Host key was wrong. Paste it again.")}
+    if(!r.ok)throw 0;
+    setStatus("Night saved to the leaderboard ✓");
+    alert("Saved! It's on the leaderboard now.");
+  }catch(e){setStatus("Couldn't save. You're offline? Try again; nothing is lost.")}
+}
+
+// boot: newer of phone copy vs server backup; names from saved nights; RSVPs for tonight
+(async()=>{
+  draw(); setStatus(S.players.length?"Picked up where you left off":"Ready");
+  try{const r=await fetch("/api/games",{cache:"no-store"});if(r.ok){const g=(await r.json()).games||[];extraNames=[...new Set(g.flatMap(x=>x.players.map(p=>p[0])))]}}catch(e){}
+  if(KEY&&KEY!=="skip"){try{const r=await fetch("/api/games?draft=1",{headers:{"x-host-key":KEY},cache:"no-store"});
+    if(r.ok){const d=(await r.json()).draft;if(d&&d.players&&(d.updatedAt||0)>(S.updatedAt||0)&&d.players.length){S=d;ls.set("poker-live",JSON.stringify(S));setStatus("Restored from backup")}}}catch(e){}}
+  try{const r=await fetch("/api/rsvp?game="+S.date,{cache:"no-store"});if(r.ok){rsvpIn=((await r.json()).responses||[]).filter(x=>x.status==="in").map(x=>x.name)}}catch(e){}
+  draw();
+})();
+</script>
+</body>
+</html>

@@ -25,7 +25,7 @@ export default async (req) => {
     let body;
     try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
     const game = String(body.game || "");
-    const name = String(body.name || "").replace(/\s+/g, " ").trim().slice(0, 30);
+    const name = String(body.name || "").replace(/[<>"&]/g, "").replace(/\s+/g, " ").trim().slice(0, 30);
     const status = String(body.status || "");
     const guests = status === "out" ? 0 : Math.max(0, Math.min(5, parseInt(body.guests, 10) || 0));
     if (!GAME_RE.test(game) || !name || !STATUSES.has(status)) return json({ error: "bad input" }, 400);

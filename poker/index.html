@@ -30,7 +30,28 @@
   .stat b{display:block;font-size:20px;font-weight:800}
   .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
   .tabs{display:flex;background:rgba(0,0,0,.25);border-radius:999px;padding:4px;margin-bottom:16px}
-  .tabs button{flex:1;border:0;background:none;color:var(--muted);font:600 14px Inter,sans-serif;padding:10px;border-radius:999px;cursor:pointer}
+  .tabs button{flex:1;border:0;background:none;color:var(--muted);font:600 13px Inter,sans-serif;padding:10px 2px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .h2h-pick{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-bottom:12px}
+  .h2h-pick select{width:100%;min-width:0;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px;font:600 14px Inter,sans-serif}
+  .h2h-pick span{color:var(--gold);font-weight:800;font-size:13px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+  .score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;text-align:center;gap:6px}
+  .score .nm{font-weight:700;font-size:14px}.score .big{font-family:"Playfair Display",serif;font-size:40px;line-height:1}
+  .score .dash{color:var(--muted);font-size:24px}
+  .score .sub2{font-size:12px;color:var(--muted);margin-top:4px}
+  .lead{color:var(--gold)}
+  .facts{list-style:none;padding:0;margin:10px 0 0;font-size:13px;line-height:1.55}
+  .facts li{padding:6px 0;border-top:1px solid var(--line)}
+  .facts li:first-child{border-top:0}
+  .rival{display:flex;justify-content:space-between;gap:8px;align-items:center;cursor:pointer}
+  .rival b{font-size:14px}.rival span{font-size:12px;color:var(--muted);white-space:nowrap}
+  .chart{width:100%;height:auto;display:block}
+  .tgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+  .tgrid .stat b{font-size:18px}
+  .insight{font-size:14px;line-height:1.5;padding:10px 0;border-top:1px solid var(--line)}
+  .insight:first-child{border-top:0;padding-top:0}
+  .insight .k{display:block;font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:2px}
+  .small{font-size:12px;color:var(--muted)}
   .tabs button.on{background:var(--gold);color:#1d1606}
   .panel{display:none}.panel.on{display:block}
   .row{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;
@@ -106,6 +127,8 @@
 
   <div class="tabs">
     <button class="on" data-tab="standings">Standings</button>
+    <button data-tab="h2h">Head-to-Head</button>
+    <button data-tab="trends">Trends</button>
     <button data-tab="games">Game Log</button>
   </div>
 
@@ -114,6 +137,15 @@
     <h2>Season Awards</h2>
     <div class="awards" id="awards"></div>
   </section>
+
+  <section class="panel" id="h2h">
+    <div class="h2h-pick"><select id="h2h-a"></select><span>VS</span><select id="h2h-b"></select></div>
+    <div id="h2h-out"></div>
+    <h2>Rivalries</h2>
+    <div id="rivals"></div>
+  </section>
+
+  <section class="panel" id="trends"><div id="trend-out"></div></section>
 
   <section class="panel" id="games"><div id="log"></div></section>
 
@@ -125,7 +157,7 @@
    in  = total buy-ins (incl. rebuys), out = chips cashed out. */
 const SEASON = "Since May 9, 2026";
 const UPDATED = "Nov 4, 2026";
-const GAMES = [
+const BASE_GAMES = [
   { date:"2026-11-03", note:"Pizza covered by a 57.5% rake on cash-outs; results shown before rake.", players:[
     ["David S.",25,63.50],["Jon D.",50,55],["Ricky A.",25,34],["David F.",25,17],["Jake Dun.",25,7],["Kyler B.",25,0]]},
   { date:"2026-10-20", players:[
@@ -150,6 +182,8 @@ const $ = s => document.querySelector(s);
 const money = n => (n<0?"−":n>0?"+":"")+"$"+Math.abs(n).toFixed(2).replace(/\.00$/,"");
 const plain = n => "$"+n.toFixed(2).replace(/\.00$/,"");
 const fmtDate = d => new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+let GAMES = BASE_GAMES;
+function render(){
 const chron = [...GAMES].sort((a,b)=>a.date.localeCompare(b.date));
 
 const P = {};
@@ -247,7 +281,7 @@ function rsvp(game){
   load();
 }
 $("#season").textContent = SEASON+" · "+GAMES.length+" games";
-$("#updated").textContent = "Updated "+UPDATED;
+$("#updated").textContent = "Last game "+fmtDate(GAMES[0].date)+" · updated "+UPDATED;
 const pot = GAMES.reduce((s,g)=>s+g.players.reduce((t,p)=>t+p[1],0),0);
 const bigPot = Math.max(...GAMES.map(g=>g.players.reduce((t,p)=>t+p[1],0)));
 $("#stats").innerHTML = [["Total pot",plain(pot)],["Biggest pot",plain(bigPot)]]
@@ -308,6 +342,131 @@ document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll(".tabs button,.panel").forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); $("#"+b.dataset.tab).classList.add("on");
 });
+  renderH2H(); renderTrends();
+}
+
+/* ===== Head-to-Head ===== */
+function seatOf(g,n){const p=g.players.find(x=>x[0]===n);return p?{in:p[1],out:p[2],net:p[2]-p[1]}:null}
+function pairStats(a,b){
+  const chron=[...GAMES].sort((x,y)=>x.date.localeCompare(y.date));
+  const r={nights:[],wa:0,wb:0,ties:0,na:0,nb:0,koab:0,koba:0};
+  chron.forEach(g=>{
+    (g.knockouts||[]).forEach(([v,by])=>{if(by===a&&v===b)r.koab++;if(by===b&&v===a)r.koba++});
+    const A=seatOf(g,a),B=seatOf(g,b); if(!A||!B)return;
+    r.nights.push({date:g.date,a:A.net,b:B.net}); r.na+=A.net; r.nb+=B.net;
+    if(A.net>B.net)r.wa++; else if(B.net>A.net)r.wb++; else r.ties++;
+  });
+  return r;
+}
+function withWithout(a,b){
+  let w=[],wo=[];GAMES.forEach(g=>{const A=seatOf(g,a);if(!A)return;(seatOf(g,b)?w:wo).push(A.net)});
+  const avg=x=>x.reduce((t,v)=>t+v,0)/x.length;
+  return w.length&&wo.length?{w:avg(w),wo:avg(wo),nw:w.length,nwo:wo.length}:null;
+}
+function renderH2H(){
+  const names=[...new Set(GAMES.flatMap(g=>g.players.map(p=>p[0])))];
+  const pairs=[];
+  for(let i=0;i<names.length;i++)for(let j=i+1;j<names.length;j++){
+    const r=pairStats(names[i],names[j]); if(r.nights.length>=2)pairs.push({a:names[i],b:names[j],r});
+  }
+  pairs.sort((x,y)=>y.r.nights.length-x.r.nights.length||Math.abs(x.r.na-x.r.nb)-Math.abs(y.r.na-y.r.nb));
+  const A=$("#h2h-a"),B=$("#h2h-b");
+  const opts=names.slice().sort().map(n=>`<option>${n}</option>`).join("");
+  A.innerHTML=opts;B.innerHTML=opts;
+  const def=pairs[0]||{a:names[0],b:names[1]};
+  A.value=def.a;B.value=def.b;
+  const show=()=>{
+    const a=A.value,b=B.value,out=$("#h2h-out");
+    if(a===b){out.innerHTML=`<div class="card small">Pick two different players.</div>`;return}
+    const r=pairStats(a,b),n=r.nights.length;
+    if(!n){out.innerHTML=`<div class="card small">${a} and ${b} haven't played the same night yet.</div>`;return}
+    const ahead=r.na>r.nb?a:r.nb>r.na?b:null;
+    const facts=[];
+    facts.push(`Nights at the same table: <b>${n}</b>${r.ties?` (${r.ties} tie${r.ties>1?"s":""})`:""}`);
+    facts.push(`In those nights: ${a} <b class="${r.na>=0?"up":"down"}">${money(r.na)}</b> · ${b} <b class="${r.nb>=0?"up":"down"}">${money(r.nb)}</b>`);
+    if(ahead)facts.push(`<b>${ahead}</b> is up <b>${plain(Math.abs(r.na-r.nb))}</b> on the other across shared nights`);
+    const big=r.nights.map(x=>({...x,gap:x.a-x.b})).sort((x,y)=>Math.abs(y.gap)-Math.abs(x.gap))[0];
+    if(big&&big.gap)facts.push(`Biggest gap: ${fmtDate(big.date)}, ${big.gap>0?a:b} beat ${big.gap>0?b:a} by ${plain(Math.abs(big.gap))}`);
+    if(r.koab||r.koba)facts.push(`Knockouts: ${a} busted ${b} <b>${r.koab}</b>× · ${b} busted ${a} <b>${r.koba}</b>×`);
+    [[a,b],[b,a]].forEach(([x,y])=>{const ww=withWithout(x,y);if(ww)facts.push(`With ${y} at the table, ${x} averages <b class="${ww.w>=0?"up":"down"}">${money(ww.w)}</b>/night; without, <b class="${ww.wo>=0?"up":"down"}">${money(ww.wo)}</b>`)});
+    out.innerHTML=`<div class="card"><div class="score">
+        <div><div class="big ${r.wa>r.wb?"lead":""}">${r.wa}</div><div class="nm">${a}</div></div>
+        <div class="dash">–</div>
+        <div><div class="big ${r.wb>r.wa?"lead":""}">${r.wb}</div><div class="nm">${b}</div></div></div>
+        <div class="score"><div class="sub2" style="grid-column:1/-1">Nights won head-to-head (better result that night)</div></div>
+        <ul class="facts">${facts.map(f=>`<li>${f}</li>`).join("")}</ul>
+        <table style="margin-top:8px"><tr><th>Night</th><th>${a}</th><th>${b}</th></tr>
+        ${r.nights.slice().reverse().map(x=>`<tr><td>${fmtDate(x.date)}</td><td class="${x.a>=0?"up":"down"}">${money(x.a)}</td><td class="${x.b>=0?"up":"down"}">${money(x.b)}</td></tr>`).join("")}</table></div>`;
+  };
+  A.onchange=B.onchange=show; show();
+  $("#rivals").innerHTML=pairs.length?pairs.slice(0,6).map(p=>{
+    const lead=p.r.wa===p.r.wb?"all square":(p.r.wa>p.r.wb?p.a:p.b)+" leads";
+    return `<div class="card rival" data-a="${p.a}" data-b="${p.b}"><b>${p.a} vs ${p.b}</b><span>${p.r.wa}–${p.r.wb} · ${lead} · ${p.r.nights.length} nights</span></div>`}).join("")
+    :`<div class="card small">Rivalries show up once two players have shared 2+ nights.</div>`;
+  document.querySelectorAll(".rival").forEach(el=>el.onclick=()=>{A.value=el.dataset.a;B.value=el.dataset.b;show();window.scrollTo({top:$("#h2h").offsetTop-10,behavior:"smooth"})});
+}
+
+/* ===== Trends ===== */
+function renderTrends(){
+  const chron=[...GAMES].sort((a,b)=>a.date.localeCompare(b.date));
+  const N=chron.length, sum=x=>x.reduce((t,v)=>t+v,0), avg=x=>sum(x)/x.length;
+  const pot=g=>sum(g.players.map(p=>p[1]));
+  const pots=chron.map(pot), counts=chron.map(g=>g.players.length);
+  const winTake=chron.map(g=>{const w=g.players.reduce((m,p)=>p[2]-p[1]>m[2]-m[1]?p:m);return {g,name:w[0],net:w[2]-w[1],share:w[2]/pot(g)}});
+  const seats=chron.flatMap(g=>g.players), busts=seats.filter(p=>p[2]===0).length;
+  const rebuys=chron.map(g=>sum(g.players.map(p=>Math.max(0,Math.round(p[1]/25)-1))));
+  // chart
+  const W=340,H=170,pad=26,bw=(W-pad*2)/N,mx=Math.max(...pots);
+  const bars=chron.map((g,i)=>{const h=(pots[i]/mx)*(H-pad*2-14),x=pad+i*bw+bw*.18,y=H-pad-h;
+    return `<rect x="${x}" y="${y}" width="${bw*.64}" height="${h}" rx="4" fill="var(--gold)" opacity="${.55+.45*(i+1)/N}"/>
+    <text x="${x+bw*.32}" y="${y-5}" text-anchor="middle" font-size="10" fill="var(--ink)" font-weight="700">${plain(pots[i])}</text>
+    <text x="${x+bw*.32}" y="${H-pad+13}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${fmtDate(g.date)}</text>
+    <text x="${x+bw*.32}" y="${H-pad-6}" text-anchor="middle" font-size="9.5" fill="#1d1606" font-weight="700">${counts[i]}👤</text>`}).join("");
+  const chart=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Pot size by night">${bars}
+    <line x1="${pad}" x2="${W-pad}" y1="${H-pad}" y2="${H-pad}" stroke="rgba(255,255,255,.18)"/></svg>`;
+  const ins=[];
+  if(N>=4){const h=Math.floor(N/2),e=avg(pots.slice(0,h)),l=avg(pots.slice(-h)),ch=Math.round((l-e)/e*100);
+    ins.push(["Pot trend",ch>=0?`Pots are up <b>${ch}%</b> lately: ${plain(l)} average over the last ${h} games vs ${plain(e)} early on.`:`Pots are down <b>${-ch}%</b> lately: ${plain(l)} average over the last ${h} games vs ${plain(e)} early on.`])}
+  const wt=avg(winTake.map(w=>w.share));
+  ins.push(["Winner takes",`The night's big winner walks out with <b>${Math.round(wt*100)}%</b> of the pot on average.`]);
+  const top=winTake.slice().sort((a,b)=>b.share-a.share)[0];
+  ins.push(["Biggest heist",`${top.name} took <b>${Math.round(top.share*100)}%</b> of the ${plain(pot(top.g))} pot on ${fmtDate(top.g.date)}.`]);
+  ins.push(["Bust rate",`<b>${Math.round(busts/seats.length*100)}%</b> of seats end the night at $0. Rebuys: <b>${avg(rebuys).toFixed(1)}</b> per night.`]);
+  const prof=avg(chron.map(g=>g.players.filter(p=>p[2]>p[1]).length/g.players.length));
+  ins.push(["Who goes home happy",`Only <b>${Math.round(prof*100)}%</b> of players leave up money on a typical night.`]);
+  // big-table specialist
+  const med=counts.slice().sort((a,b)=>a-b)[Math.floor(N/2)];
+  const spec=[...new Set(seats.map(p=>p[0]))].map(n=>{const big=[],small=[];chron.forEach(g=>{const s=seatOf(g,n);if(s)(g.players.length>=med?big:small).push(s.net)});
+    return big.length&&small.length?{n,d:avg(big)-avg(small),big:avg(big),small:avg(small)}:null}).filter(Boolean).sort((a,b)=>b.d-a.d);
+  if(spec.length){const s=spec[0];ins.push(["Big-table specialist",`${s.n} averages <b class="up">${money(s.big)}</b> at tables of ${med}+ and <b class="${s.small>=0?"up":"down"}">${money(s.small)}</b> at smaller ones.`])}
+  const kos=chron.flatMap(g=>g.knockouts||[]);
+  if(kos.length){const c={};kos.forEach(([v,by])=>c[by]=(c[by]||0)+1);const [k,v]=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];
+    ins.push(["Assassin",`${k} has knocked out <b>${v}</b> player${v>1?"s":""} this season.`])}
+  $("#trend-out").innerHTML=`
+    <div class="tgrid">
+      <div class="stat"><b>${plain(avg(pots))}</b><span>Avg pot</span></div>
+      <div class="stat"><b>${avg(counts).toFixed(1)}</b><span>Avg players</span></div>
+      <div class="stat"><b>${plain(avg(winTake.map(w=>w.net)))}</b><span>Avg winner's take</span></div>
+      <div class="stat"><b>${Math.max(...counts)}</b><span>Biggest table</span></div>
+    </div>
+    <div class="card"><div class="small" style="margin-bottom:6px">Pot by night (👤 = players)</div>${chart}</div>
+    <div class="card">${ins.map(([k,v])=>`<div class="insight"><span class="k">${k}</span>${v}</div>`).join("")}</div>
+    <div class="small" style="text-align:center">Based on ${N} games. Gets sharper every night.</div>`;
+}
+
+(async function boot(){
+  try{
+    const ctl=new AbortController(); setTimeout(()=>ctl.abort(),2500);
+    const r=await fetch("/api/games",{signal:ctl.signal,cache:"no-store"});
+    if(r.ok){
+      const extra=(await r.json()).games||[], by={};
+      BASE_GAMES.forEach(g=>by[g.date]=g);
+      extra.forEach(g=>{if(g&&/^\d{4}-\d{2}-\d{2}$/.test(g.date)&&Array.isArray(g.players)&&g.players.length)by[g.date]=g});
+      GAMES=Object.values(by).sort((a,b)=>b.date.localeCompare(a.date));
+    }
+  }catch(e){}
+  render();
+})();
 </script>
 </body>
 </html>
