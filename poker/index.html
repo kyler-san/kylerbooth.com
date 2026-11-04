@@ -62,6 +62,15 @@
   th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
   td:first-child,th:first-child{text-align:left}
   .note{font-size:12px;color:var(--muted);margin-top:8px}
+  .next{position:relative;overflow:hidden;background:linear-gradient(160deg,#2a5a3f 0%,var(--card) 70%);
+    border:1px solid rgba(231,195,106,.45);border-radius:20px;padding:22px 18px 20px;text-align:center;margin:4px 0 18px;
+    box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .next .lbl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700}
+  .next .day{font-family:"Playfair Display",serif;font-size:32px;line-height:1.1;margin:8px 0 4px}
+  .next .time{font-size:15px;color:var(--ink);opacity:.9}
+  .next .count{display:inline-block;margin-top:12px;background:var(--gold);color:#1d1606;font-weight:800;font-size:13px;
+    padding:6px 14px;border-radius:999px}
+  .next .after{margin-top:12px;font-size:12px;color:var(--muted)}
   footer{text-align:center;color:var(--muted);font-size:12px;margin-top:28px}
 </style>
 </head>
@@ -72,6 +81,8 @@
     <h1>Poker Night<br>Leaderboard</h1>
     <div class="sub" id="season"></div>
   </header>
+
+  <div class="next" id="next"></div>
 
   <div class="stats" id="stats"></div>
 
@@ -108,6 +119,13 @@ const GAMES = [
   { date:"2026-05-09", players:[
     ["Jake Dav.",25,83.25],["Tyler V.",25,15],["Ricky A.",25,8.75],["Jon D.",25,0],["Kyler B.",25,18]]},
 ];
+/* ===== SCHEDULE — synced from Kyler's "Tuesday Poker" calendar series =====
+   Start times, Denver local. Cancelled nights are removed here. */
+const SCHEDULE = [
+  "2026-11-17T17:45","2026-12-01T17:45","2026-12-15T17:45","2026-12-29T17:45",
+  "2027-01-12T17:45","2027-01-26T17:45",
+];
+const GAME_HOURS = 4.75; // 5:45–10:30pm
 /* ===== end data ===== */
 
 const $ = s => document.querySelector(s);
@@ -130,6 +148,26 @@ chron.forEach(g=>{
 });
 const players = Object.values(P).sort((a,b)=>b.net-a.net);
 
+
+(function(){
+  const now=Date.now();
+  const toDate=d=>{const [a,b]=d.split("T"),[y,m,dd]=a.split("-").map(Number),[h,mi]=b.split(":").map(Number);
+    return new Date(y,m-1,dd,h,mi)};
+  const up=SCHEDULE.map(toDate).filter(d=>d.getTime()+GAME_HOURS*3600e3>now).sort((a,b)=>a-b);
+  const el=$("#next");
+  if(!up.length){el.innerHTML=`<div class="lbl">Next game</div><div class="day">TBD</div><div class="time">Watch the group chat</div>`;return}
+  const n=up[0];
+  const day=n.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
+  const time=n.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+  const mid=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const days=Math.round((mid(n)-mid(new Date()))/864e5);
+  const live=now>=n.getTime();
+  const badge=live?"🔴 Game on now":days===0?"Tonight":days===1?"Tomorrow":`In ${days} days`;
+  const after=up.slice(1,3).map(d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric"})).join(" · ");
+  el.innerHTML=`<div class="lbl">♠ Next game</div><div class="day">${day}</div>
+    <div class="time">${time} · $25 buy-in</div><div class="count">${badge}</div>
+    ${after?`<div class="after">Then ${after}</div>`:""}`;
+})();
 $("#season").textContent = SEASON+" · "+GAMES.length+" games";
 $("#updated").textContent = "Updated "+UPDATED;
 const pot = GAMES.reduce((s,g)=>s+g.players.reduce((t,p)=>t+p[1],0),0);
