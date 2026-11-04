@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poker Night Leaderboard</title>
+<meta name="theme-color" content="#0f2a1d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --felt:#0f2a1d; --felt-2:#143826; --card:#183f2c; --line:rgba(255,255,255,.09);
+    --ink:#f4efe3; --muted:#a9b8ac; --gold:#e7c36a; --up:#5fd68a; --down:#ff7a6b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(120% 80% at 50% 0%, #1b4a33 0%, var(--felt) 60%) fixed, var(--felt);
+    color:var(--ink); font-family:Inter,system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh;
+    padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+  .wrap{max-width:560px;margin:0 auto;padding:28px 16px 48px}
+  header{text-align:center;margin-bottom:22px}
+  .suits{letter-spacing:.5em;color:var(--gold);font-size:13px;opacity:.85}
+  h1{font-family:"Playfair Display",serif;font-size:34px;line-height:1.05;margin:8px 0 6px}
+  .sub{color:var(--muted);font-size:14px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:20px 0 18px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center}
+  .stat b{display:block;font-size:20px;font-weight:800}
+  .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .tabs{display:flex;background:rgba(0,0,0,.25);border-radius:999px;padding:4px;margin-bottom:16px}
+  .tabs button{flex:1;border:0;background:none;color:var(--muted);font:600 14px Inter,sans-serif;padding:10px;border-radius:999px;cursor:pointer}
+  .tabs button.on{background:var(--gold);color:#1d1606}
+  .panel{display:none}.panel.on{display:block}
+  .row{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:10px;
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
+  .rank{font-weight:800;font-size:17px;color:var(--muted);text-align:center}
+  .row:nth-child(1) .rank{color:var(--gold)}
+  .name{font-weight:700;font-size:16px}
+  .meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .net{font-weight:800;font-size:18px;text-align:right}
+  .up{color:var(--up)}.down{color:var(--down)}
+  .detail{grid-column:1/-1;display:none;border-top:1px solid var(--line);margin-top:8px;padding-top:10px}
+  .row.open .detail{display:block}
+  .kv{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:12px;color:var(--muted);margin-bottom:8px}
+  .kv b{display:block;color:var(--ink);font-size:14px}
+  .spark{width:100%;height:46px}
+  h2{font-family:"Playfair Display",serif;font-size:22px;margin:24px 0 10px}
+  .awards{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .award{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+  .award .t{font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+  .award .w{font-weight:700;font-size:15px;margin-top:4px}
+  .award .s{font-size:12px;color:var(--muted)}
+  .game{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:8px;overflow:hidden}
+  .ghead{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;cursor:pointer}
+  .ghead b{font-size:15px}.ghead span{font-size:12px;color:var(--muted)}
+  .gbody{display:none;padding:0 14px 12px}
+  .game.open .gbody{display:block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td,th{padding:7px 0;border-top:1px solid var(--line);text-align:right}
+  th{font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  td:first-child,th:first-child{text-align:left}
+  .note{font-size:12px;color:var(--muted);margin-top:8px}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:28px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="suits">♠ ♥ ♦ ♣</div>
+    <h1>Poker Night<br>Leaderboard</h1>
+    <div class="sub" id="season"></div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="tabs">
+    <button class="on" data-tab="standings">Standings</button>
+    <button data-tab="games">Game Log</button>
+  </div>
+
+  <section class="panel on" id="standings">
+    <div id="board"></div>
+    <h2>Season Awards</h2>
+    <div class="awards" id="awards"></div>
+  </section>
+
+  <section class="panel" id="games"><div id="log"></div></section>
+
+  <footer id="updated"></footer>
+</div>
+
+<script>
+/* ===== DATA — add a new game at the top of the list after each night =====
+   in  = total buy-ins (incl. rebuys), out = chips cashed out. */
+const SEASON = "Since May 9, 2026";
+const UPDATED = "Nov 4, 2026";
+const GAMES = [
+  { date:"2026-11-03", note:"Pizza covered by a 57.5% rake on cash-outs; results shown before rake.", players:[
+    ["David S.",25,63.50],["Jon D.",50,55],["Ricky A.",25,34],["David F.",25,17],["Jake Dun.",25,7],["Kyler B.",25,0]]},
+  { date:"2026-10-20", players:[
+    ["Tommy B.",25,49.25],["Jake Dun.",25,29.50],["David F.",25,6.25],["Kyler B.",25,15]]},
+  { date:"2026-10-06", note:"Kyler covered food ($69.25) personally; not taken from the pot.", players:[
+    ["Jon D.",25,13.75],["Nick G.",50,48],["Taylor N.",25,43.75],["Tommy B.",50,13.50],["David F.",50,6.75],["Kyler B.",25,99.25]]},
+  { date:"2026-08-21", players:[
+    ["Chris C.",50,131.75],["David S.",75,131.50],["Nick G.",50,36.25],["James A.",50,0],["Jake Dav.",75,0],["Kyler B.",25,25.50]]},
+  { date:"2026-05-09", players:[
+    ["Jake Dav.",25,83.25],["Tyler V.",25,15],["Ricky A.",25,8.75],["Jon D.",25,0],["Kyler B.",25,18]]},
+];
+/* ===== end data ===== */
+
+const $ = s => document.querySelector(s);
+const money = n => (n<0?"−":n>0?"+":"")+"$"+Math.abs(n).toFixed(2).replace(/\.00$/,"");
+const plain = n => "$"+n.toFixed(2).replace(/\.00$/,"");
+const fmtDate = d => new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const chron = [...GAMES].sort((a,b)=>a.date.localeCompare(b.date));
+
+const P = {};
+chron.forEach(g=>{
+  g.players.forEach(([name,inn,out])=>{
+    const p = P[name] ||= {name,net:0,in:0,out:0,nights:0,wins:0,best:-Infinity,bestDate:"",rebuys:0,busts:0,run:[]};
+    const n = out-inn;
+    p.net+=n; p.in+=inn; p.out+=out; p.nights++;
+    if(n>0)p.wins++; if(out===0)p.busts++;
+    p.rebuys += Math.max(0,Math.round(inn/25)-1);
+    if(n>p.best){p.best=n;p.bestDate=g.date}
+    p.run.push(p.net);
+  });
+});
+const players = Object.values(P).sort((a,b)=>b.net-a.net);
+
+$("#season").textContent = SEASON+" · "+GAMES.length+" games";
+$("#updated").textContent = "Updated "+UPDATED;
+const pot = GAMES.reduce((s,g)=>s+g.players.reduce((t,p)=>t+p[1],0),0);
+const bigPot = Math.max(...GAMES.map(g=>g.players.reduce((t,p)=>t+p[1],0)));
+$("#stats").innerHTML = [["Games",GAMES.length],["Total pot",plain(pot)],["Biggest pot",plain(bigPot)]]
+  .map(([l,v])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+
+function spark(run){
+  const w=300,h=46,pts=[0,...run],mn=Math.min(...pts),mx=Math.max(...pts),r=(mx-mn)||1;
+  const xy=pts.map((v,i)=>[i*(w/(pts.length-1||1)), h-4-((v-mn)/r)*(h-8)]);
+  const zero=h-4-((0-mn)/r)*(h-8);
+  const c=run[run.length-1]>=0?"var(--up)":"var(--down)";
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <line x1="0" x2="${w}" y1="${zero}" y2="${zero}" stroke="rgba(255,255,255,.18)" stroke-dasharray="3 4"/>
+    <polyline fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" points="${xy.map(p=>p.join(",")).join(" ")}"/></svg>`;
+}
+
+$("#board").innerHTML = players.map((p,i)=>`
+  <div class="row">
+    <div class="rank">${i===0?"👑":i+1}</div>
+    <div><div class="name">${p.name}</div>
+      <div class="meta">${p.nights} night${p.nights>1?"s":""} · ${p.wins} winning</div></div>
+    <div class="net ${p.net>=0?"up":"down"}">${money(p.net)}</div>
+    <div class="detail">
+      <div class="kv">
+        <div>Bought in<b>${plain(p.in)}</b></div>
+        <div>Cashed out<b>${plain(p.out)}</b></div>
+        <div>ROI<b>${Math.round(p.net/p.in*100)}%</b></div>
+        <div>Best night<b>${money(p.best)}</b></div>
+        <div>Rebuys<b>${p.rebuys}</b></div>
+        <div>Busts<b>${p.busts}</b></div>
+      </div>
+      ${spark(p.run)}
+    </div>
+  </div>`).join("");
+document.querySelectorAll(".row").forEach(r=>r.onclick=()=>r.classList.toggle("open"));
+
+const by=(f,dir=-1)=>[...players].sort((a,b)=>dir*(f(a)-f(b)))[0];
+const bestNight = players.map(p=>({p,v:p.best})).sort((a,b)=>b.v-a.v)[0];
+const award=[
+  ["💥 Biggest night",bestNight.p,p=>money(p.best)+" on "+fmtDate(p.bestDate)],
+  ["🔁 Rebuy King",by(p=>p.rebuys),p=>p.rebuys+" rebuys"],
+  ["🔥 Hot Hand",{name:players.filter(p=>p.wins===Math.max(...players.map(q=>q.wins))).map(p=>p.name).join(" & "),wins:Math.max(...players.map(q=>q.wins))},p=>p.wins+" winning nights"],
+  ["📈 Best ROI (3+ nights)",[...players].filter(p=>p.nights>=3).sort((a,b)=>b.net/b.in-a.net/a.in)[0],p=>Math.round(p.net/p.in*100)+"% ROI"],
+];
+$("#awards").innerHTML = award.map(([t,p,s])=>`<div class="award"><div class="t">${t}</div><div class="w">${p.name}</div><div class="s">${s(p)}</div></div>`).join("");
+
+$("#log").innerHTML = GAMES.map(g=>{
+  const rows=[...g.players].sort((a,b)=>(b[2]-b[1])-(a[2]-a[1]));
+  const potG=g.players.reduce((t,p)=>t+p[1],0);
+  return `<div class="game"><div class="ghead"><div><b>${fmtDate(g.date)}</b><br><span>${g.players.length} players · ${plain(potG)} pot</span></div>
+    <span>🏆 ${rows[0][0]} ${money(rows[0][2]-rows[0][1])}</span></div>
+    <div class="gbody"><table><tr><th>Player</th><th>In</th><th>Out</th><th>Net</th></tr>
+    ${rows.map(([n,i,o])=>`<tr><td>${n}</td><td>${plain(i)}</td><td>${plain(o)}</td><td class="${o-i>=0?"up":"down"}">${money(o-i)}</td></tr>`).join("")}
+    </table>${g.note?`<div class="note">${g.note}</div>`:""}</div></div>`;
+}).join("");
+document.querySelectorAll(".ghead").forEach(h=>h.onclick=()=>h.parentElement.classList.toggle("open"));
+
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button,.panel").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); $("#"+b.dataset.tab).classList.add("on");
+});
+</script>
+</body>
+</html>
