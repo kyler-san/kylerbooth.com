@@ -80,6 +80,11 @@
     padding:12px 4px;font:700 14px Inter,sans-serif;cursor:pointer}
   .rsvp .btns button.sel{background:var(--gold);color:#1d1606;border-color:var(--gold)}
   .rsvp .btns button:disabled{opacity:.5}
+  .rsvp .plus{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:14px;color:var(--muted)}
+  .rsvp .plus .ctl{display:flex;align-items:center;gap:10px}
+  .rsvp .plus button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:rgba(0,0,0,.2);
+    color:var(--ink);font:700 18px Inter,sans-serif;cursor:pointer;line-height:1}
+  .rsvp .plus b{color:var(--ink);font-size:16px;min-width:22px;text-align:center}
   .rsvp .msg{font-size:12px;color:var(--muted);margin-top:8px;min-height:15px;text-align:center}
   .rsvp .list{margin-top:10px;font-size:13px;line-height:1.5}
   .rsvp .list b{color:var(--gold);font-weight:700}
@@ -190,25 +195,29 @@ function rsvp(game){
   const counts={};GAMES.forEach(g=>g.players.forEach(([n])=>counts[n]=(counts[n]||0)+1));
   const roster=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]||a.localeCompare(b));
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-  let me=store.get("poker-name")||"", responses=[];
+  let me=store.get("poker-name")||"", responses=[], guests=0;
+  const showG=()=>$("#rv-g").textContent="+"+guests;
   const LABEL={in:"I'm in 👍",maybe:"Maybe 🤔",out:"Can't make it"};
   box.innerHTML=`<div class="who"><select id="rv-name"><option value="">Who are you?</option>
       ${roster.map(n=>`<option>${esc(n)}</option>`).join("")}<option value="__other">Someone else…</option></select>
       <input id="rv-other" placeholder="Your name" maxlength="30" style="display:none"></div>
     <div class="btns">${Object.entries(LABEL).map(([k,v])=>`<button data-s="${k}">${v}</button>`).join("")}</div>
+    <div class="plus">Bringing a friend?<div class="ctl"><button data-g="-1" aria-label="fewer guests">−</button><b id="rv-g">+0</b><button data-g="1" aria-label="more guests">+</button></div></div>
     <div class="msg" id="rv-msg"></div><div class="list" id="rv-list"></div>`;
   const sel=$("#rv-name"), other=$("#rv-other"), msg=$("#rv-msg");
   if(me){ if(roster.includes(me)) sel.value=me; else {sel.value="__other";other.style.display="";other.value=me} }
-  sel.onchange=()=>{other.style.display=sel.value==="__other"?"":"none"; if(sel.value!=="__other"){me=sel.value;paint()} else other.focus()};
+  sel.onchange=()=>{other.style.display=sel.value==="__other"?"":"none"; paint.touched=false; guests=0; showG(); if(sel.value!=="__other"){me=sel.value;paint()} else other.focus()};
   other.oninput=()=>{me=other.value.trim();paint()};
   const name=()=>sel.value==="__other"?other.value.trim():sel.value;
   function paint(){
     const mine=responses.find(r=>r.name.toLowerCase()===(name()||"").toLowerCase());
     box.querySelectorAll(".btns button").forEach(b=>b.classList.toggle("sel",!!mine&&mine.status===b.dataset.s));
-    const grp=s=>responses.filter(r=>r.status===s).sort((a,b)=>a.at.localeCompare(b.at)).map(r=>esc(r.name));
+    if(mine&&!paint.touched){guests=mine.guests||0;showG()}
+    const grp=s=>responses.filter(r=>r.status===s).sort((a,b)=>a.at.localeCompare(b.at)).map(r=>esc(r.name)+(r.guests?` +${r.guests}`:""));
     const ins=grp("in"),mb=grp("maybe"),out=grp("out");
+    const headcount=responses.filter(r=>r.status==="in").reduce((t,r)=>t+1+(r.guests||0),0);
     $("#rv-list").innerHTML=!responses.length?`<span class="none">No RSVPs yet. Be the first.</span>`:
-      `<div><b>In (${ins.length}):</b> ${ins.join(", ")||"—"}</div>`+
+      `<div><b>In (${headcount}):</b> ${ins.join(", ")||"—"}</div>`+
       (mb.length?`<div><b>Maybe:</b> ${mb.join(", ")}</div>`:"")+
       (out.length?`<div><b>Out:</b> ${out.join(", ")}</div>`:"");
   }
@@ -216,15 +225,24 @@ function rsvp(game){
     try{const r=await fetch(API+"?game="+game,{cache:"no-store"});if(!r.ok)throw 0;responses=(await r.json()).responses||[];paint()}
     catch(e){$("#rv-list").innerHTML=`<span class="none">RSVPs aren't loading right now.</span>`}
   }
-  box.querySelectorAll(".btns button").forEach(b=>b.onclick=async()=>{
-    const n=name(); if(!n){msg.textContent="Pick your name first.";sel.focus();return}
-    box.querySelectorAll(".btns button").forEach(x=>x.disabled=true); msg.textContent="Saving…";
+  box.querySelectorAll(".plus button").forEach(b=>b.onclick=async()=>{
+    guests=Math.max(0,Math.min(5,guests+Number(b.dataset.g)));showG();paint.touched=true;
+    const n=name(),mine=responses.find(r=>r.name.toLowerCase()===(n||"").toLowerCase());
+    if(mine&&mine.status!=="out")save(n,mine.status);
+  });
+  async function save(n,status){
+    box.querySelectorAll("button").forEach(x=>x.disabled=true); msg.textContent="Saving…";
     try{
-      const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({game,name:n,status:b.dataset.s})});
+      const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({game,name:n,status,guests:status==="out"?0:guests})});
       if(!r.ok)throw 0; responses=(await r.json()).responses||[]; store.set("poker-name",n); me=n;
-      msg.textContent=b.dataset.s==="in"?"You're in. See you there.":b.dataset.s==="maybe"?"Got it, maybe.":"Got it, you're out this time."; paint();
+      const g=status!=="out"&&guests?` (+${guests})`:"";
+      msg.textContent=status==="in"?`You're in${g}. See you there.`:status==="maybe"?`Got it, maybe${g}.`:"Got it, you're out this time."; paint();
     }catch(e){msg.textContent="Couldn't save. Try again, or just text Kyler."}
-    box.querySelectorAll(".btns button").forEach(x=>x.disabled=false);
+    box.querySelectorAll("button").forEach(x=>x.disabled=false);
+  }
+  box.querySelectorAll(".btns button").forEach(b=>b.onclick=()=>{
+    const n=name(); if(!n){msg.textContent="Pick your name first.";sel.focus();return}
+    save(n,b.dataset.s);
   });
   load();
 }

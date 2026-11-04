@@ -27,9 +27,10 @@ export default async (req) => {
     const game = String(body.game || "");
     const name = String(body.name || "").replace(/\s+/g, " ").trim().slice(0, 30);
     const status = String(body.status || "");
+    const guests = status === "out" ? 0 : Math.max(0, Math.min(5, parseInt(body.guests, 10) || 0));
     if (!GAME_RE.test(game) || !name || !STATUSES.has(status)) return json({ error: "bad input" }, 400);
     const data = (await store.get(game, { type: "json" })) || {};
-    data[name.toLowerCase()] = { name, status, at: new Date().toISOString() };
+    data[name.toLowerCase()] = { name, status, guests, at: new Date().toISOString() };
     await store.setJSON(game, data);
     return json({ game, responses: Object.values(data) });
   }
