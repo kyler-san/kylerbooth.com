@@ -100,8 +100,9 @@
   .rv-n.on{background:var(--gold);color:#1d1606;border-color:var(--gold)}
   .rv-n.add{color:var(--muted);border-style:dashed}
   .rv-msg{font-size:12px;color:var(--muted);margin-top:10px;min-height:15px}
-  .rv-count{font-size:13px;color:var(--gold);font-weight:700;margin:-4px 0 10px}
-  .rv-n.me{box-shadow:0 0 0 2px var(--ink)}
+  .rv-in{background:rgba(231,195,106,.08);border:1px solid rgba(231,195,106,.35);border-radius:14px;padding:10px 10px 12px;margin-bottom:14px}
+  .rv-h{font-size:13px;color:var(--gold);font-weight:800;letter-spacing:.02em}
+  .rv-in .rv-names{margin-top:8px}
   .rv-host{margin-top:12px;display:flex;flex-direction:column;gap:8px}
   .rv-host textarea{width:100%;box-sizing:border-box;background:rgba(0,0,0,.25);color:var(--ink);border:1px solid var(--line);
     border-radius:12px;padding:10px;font:14px Inter,sans-serif;resize:vertical}
@@ -240,19 +241,27 @@ function rsvp(game){
     roster.sort((a,b)=>a.localeCompare(b));loaded=true;
   }
   function draw(msg){
-    const ins=roster.filter(isIn), guests=ins.reduce((t,n)=>t+(going[n.toLowerCase()].guests||0),0);
-    const total=ins.length+guests;
-    const q=hostMode?"Host mode: tap anyone to mark them in or out."
+    const ins=roster.filter(isIn), rest=roster.filter(n=>!isIn(n));
+    const guests=ins.reduce((t,n)=>t+(going[n.toLowerCase()].guests||0),0), total=ins.length+guests;
+    const chip=(n,on)=>`<button class="rv-n ${on?"on":""}" data-n="${esc(n)}">${on?"✓ ":""}${esc(n)}</button>`;
+    const q=hostMode?"Host mode: tap a name to add or remove them."
       :mine&&isIn(mine)?`You're in, ${esc(mine.split(" ")[0])} 👍`:"Coming? Tap your name.";
-    box.innerHTML=`<div class="rv-q">${q}</div>
-      <div class="rv-count">${loaded?(total?`✓ ${total} coming${guests?` (incl. ${guests} guest${guests>1?"s":""})`:""}`:"No one yet. Be the first."):"Loading who's in…"}</div>
-      <div class="rv-names">${roster.map(n=>{const on=isIn(n);return `<button class="rv-n ${on?"on":""} ${n===mine&&!hostMode?"me":""}" data-n="${esc(n)}">${on?"✓ ":""}${esc(n)}</button>`}).join("")}
+    box.innerHTML=`<div class="rv-in">
+        <div class="rv-h">${loaded?(total?`✓ ${total} coming${guests?` (incl. ${guests} guest${guests>1?"s":""})`:""}`:"No one's in yet"):"Loading who's in…"}</div>
+        ${ins.length?`<div class="rv-names">${ins.map(n=>chip(n,true)).join("")}</div>`:""}
+      </div>
+      <div class="rv-q">${q}</div>
+      <div class="rv-names">${rest.map(n=>chip(n,false)).join("")}
         <button class="rv-n add" id="rv-add">+ Not listed</button></div>
       ${hostMode?`<div class="rv-host"><textarea id="rv-bulk" rows="3" placeholder="Add several people who texted you: one per line or separated by commas"></textarea>
         <button class="rv-btn" id="rv-bulk-go">Mark them in</button></div>`:""}
-      <div class="rv-msg">${msg||(hostMode?"":mine&&isIn(mine)?"Tap your name again if you can't make it.":"")}</div>
+      <div class="rv-msg">${msg||(hostMode?"":mine&&isIn(mine)?"Can't make it? Tap your name up top.":"")}</div>
       ${host?`<button class="rv-link" id="rv-host">${hostMode?"Done adding people":"Host: add people who texted you"}</button>`:""}`;
-    box.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>hostMode?hostToggle(b.dataset.n):send(b.dataset.n));
+    box.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{const n=b.dataset.n;
+      if(hostMode)return hostToggle(n);
+      if(isIn(n)){ if(n!==mine&&!confirm(`Take ${n} off the list? Only do this if you're ${n.split(" ")[0]}.`))return;
+        mine=n; return send(n); }
+      send(n,true)});
     $("#rv-add").onclick=()=>{const n=clean(prompt(hostMode?"Name (first name + last initial):":"Your name (first name + last initial):"));
       if(!n)return; if(!roster.includes(n)){roster.push(n);roster.sort((a,b)=>a.localeCompare(b));extra.push(n);store.set("poker-extra-names",extra.join("|"))}
       hostMode?post(n,"in").then(()=>draw(`${n} is in.`)).catch(()=>draw("Couldn't save. Try again.")):send(n,true)};
@@ -264,7 +273,7 @@ function rsvp(game){
     if(!r.ok)throw 0; take((await r.json()).responses);
   }
   async function send(n,forceIn){
-    const goingIn=forceIn||n!==mine||!isIn(n);
+    const goingIn=forceIn||!(n===mine&&isIn(n));
     const prev=mine; mine=goingIn?n:""; draw("Saving…");
     try{
       if(prev&&prev!==n) await post(prev,"out");
