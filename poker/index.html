@@ -232,7 +232,7 @@ function rsvp(game){
   const clean=t=>String(t||"").replace(/[<>"&]/g,"").replace(/\s+/g," ").trim().slice(0,30);
   const key="poker-rsvp-"+game;
   const hk=location.hash.match(/k=([0-9a-f]{32})/); if(hk){store.set("poker-host-key",hk[1]);history.replaceState(null,"",location.pathname)}
-  const host=!!store.get("poker-host-key")&&store.get("poker-host-key")!=="skip";
+  let host=!!store.get("poker-host-key")&&store.get("poker-host-key")!=="skip";
   let mine=store.get(key)||"", hostMode=false, going={}, loaded=false;
   const isIn=n=>going[n.toLowerCase()]?.status==="in";
   function take(list){
@@ -256,7 +256,7 @@ function rsvp(game){
       ${hostMode?`<div class="rv-host"><textarea id="rv-bulk" rows="3" placeholder="Add several people who texted you: one per line or separated by commas"></textarea>
         <button class="rv-btn" id="rv-bulk-go">Mark them in</button></div>`:""}
       <div class="rv-msg">${msg||(hostMode?"":mine&&isIn(mine)?"Can't make it? Tap your name up top.":"")}</div>
-      ${host?`<button class="rv-link" id="rv-host">${hostMode?"Done adding people":"Host: add people who texted you"}</button>`:""}`;
+      <button class="rv-link" id="rv-host">${hostMode?"Done adding people":host?"Host: add people who texted you":"Host"}</button>`;
     box.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{const n=b.dataset.n;
       if(hostMode)return hostToggle(n);
       if(isIn(n)){ if(n!==mine&&!confirm(`Take ${n} off the list? Only do this if you're ${n.split(" ")[0]}.`))return;
@@ -265,7 +265,15 @@ function rsvp(game){
     $("#rv-add").onclick=()=>{const n=clean(prompt(hostMode?"Name (first name + last initial):":"Your name (first name + last initial):"));
       if(!n)return; if(!roster.includes(n)){roster.push(n);roster.sort((a,b)=>a.localeCompare(b));extra.push(n);store.set("poker-extra-names",extra.join("|"))}
       hostMode?post(n,"in").then(()=>draw(`${n} is in.`)).catch(()=>draw("Couldn't save. Try again.")):send(n,true)};
-    if(host)$("#rv-host").onclick=()=>{hostMode=!hostMode;draw()};
+    $("#rv-host").onclick=async()=>{
+      if(!host){const k=(prompt("Host key:")||"").trim();if(!k)return;
+        if(!/^[0-9a-f]{32}$/.test(k))return draw("That's not the host key.");
+        draw("Checking…");
+        try{const r=await fetch("/api/games?draft=1",{headers:{"x-host-key":k},cache:"no-store"});
+          if(r.status===403)return draw("That's not the host key.");
+          if(!r.ok)throw 0;}catch(e){return draw("Couldn't check the key. Try again.")}
+        store.set("poker-host-key",k);host=true;}
+      hostMode=!hostMode;draw()};
     if(hostMode)$("#rv-bulk-go").onclick=bulk;
   }
   async function post(n,status){
