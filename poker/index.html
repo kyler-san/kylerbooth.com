@@ -103,11 +103,6 @@
   .rv-in{background:rgba(231,195,106,.08);border:1px solid rgba(231,195,106,.35);border-radius:14px;padding:10px 10px 12px;margin-bottom:14px}
   .rv-h{font-size:13px;color:var(--gold);font-weight:800;letter-spacing:.02em}
   .rv-in .rv-names{margin-top:8px}
-  .rv-host{margin-top:12px;display:flex;flex-direction:column;gap:8px}
-  .rv-host textarea{width:100%;box-sizing:border-box;background:rgba(0,0,0,.25);color:var(--ink);border:1px solid var(--line);
-    border-radius:12px;padding:10px;font:14px Inter,sans-serif;resize:vertical}
-  .rv-btn{background:var(--gold);color:#1d1606;border:0;border-radius:999px;padding:10px 14px;font:800 14px Inter,sans-serif;cursor:pointer}
-  .rv-link{margin-top:10px;background:none;border:0;color:var(--muted);text-decoration:underline;font:12px Inter,sans-serif;cursor:pointer}
   footer{text-align:center;color:var(--muted);font-size:12px;margin-top:28px}
 </style>
 </head>
@@ -227,11 +222,10 @@ function rsvp(game){
   const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
   const counts={};GAMES.forEach(g=>g.players.forEach(([n])=>counts[n]=(counts[n]||0)+1));
   const extra=(store.get("poker-extra-names")||"").split("|").filter(Boolean);
-  let roster=[...new Set([...Object.keys(counts),...extra])].sort((a,b)=>a.localeCompare(b));
+  const roster=[...new Set([...Object.keys(counts),...extra])].sort((a,b)=>a.localeCompare(b));
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const clean=t=>String(t||"").replace(/[<>"&]/g,"").replace(/\s+/g," ").trim().slice(0,30);
-  const key="poker-rsvp-"+game;
-  let mine=store.get(key)||"", hostMode=false, going={}, loaded=false;
+  let going={}, loaded=false;
   const isIn=n=>going[n.toLowerCase()]?.status==="in";
   function take(list){
     going={};(list||[]).forEach(r=>{going[r.name.toLowerCase()]=r;
@@ -242,56 +236,28 @@ function rsvp(game){
     const ins=roster.filter(isIn), rest=roster.filter(n=>!isIn(n));
     const guests=ins.reduce((t,n)=>t+(going[n.toLowerCase()].guests||0),0), total=ins.length+guests;
     const chip=(n,on)=>`<button class="rv-n ${on?"on":""}" data-n="${esc(n)}">${on?"✓ ":""}${esc(n)}</button>`;
-    const q=hostMode?"Tap names to add or remove people."
-      :mine&&isIn(mine)?`You're in, ${esc(mine.split(" ")[0])} 👍`:"Coming? Tap your name.";
     box.innerHTML=`<div class="rv-in">
         <div class="rv-h">${loaded?(total?`✓ ${total} coming${guests?` (incl. ${guests} guest${guests>1?"s":""})`:""}`:"No one's in yet"):"Loading who's in…"}</div>
         ${ins.length?`<div class="rv-names">${ins.map(n=>chip(n,true)).join("")}</div>`:""}
       </div>
-      <div class="rv-q">${q}</div>
+      <div class="rv-q">Coming? Tap your name, and anyone else who's in.</div>
       <div class="rv-names">${rest.map(n=>chip(n,false)).join("")}
         <button class="rv-n add" id="rv-add">+ Not listed</button></div>
-      ${hostMode?`<div class="rv-host"><textarea id="rv-bulk" rows="3" placeholder="Or type names: one per line or separated by commas"></textarea>
-        <button class="rv-btn" id="rv-bulk-go">Mark them in</button></div>`:""}
-      <div class="rv-msg">${msg||(hostMode?"":mine&&isIn(mine)?"Can't make it? Tap your name up top.":"")}</div>
-      <button class="rv-link" id="rv-host">${hostMode?"Done":"RSVP for several people"}</button>`;
-    box.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{const n=b.dataset.n;
-      if(hostMode)return hostToggle(n);
-      if(isIn(n)){ if(n!==mine&&!confirm(`Take ${n} off the list? Only do this if you're ${n.split(" ")[0]}.`))return;
-        mine=n; return send(n); }
-      send(n,true)});
-    $("#rv-add").onclick=()=>{const n=clean(prompt(hostMode?"Name (first name + last initial):":"Your name (first name + last initial):"));
-      if(!n)return; if(!roster.includes(n)){roster.push(n);roster.sort((a,b)=>a.localeCompare(b));extra.push(n);store.set("poker-extra-names",extra.join("|"))}
-      hostMode?post(n,"in").then(()=>draw(`${n} is in.`)).catch(()=>draw("Couldn't save. Try again.")):send(n,true)};
-    $("#rv-host").onclick=()=>{hostMode=!hostMode;draw()};
-    if(hostMode)$("#rv-bulk-go").onclick=bulk;
+      <div class="rv-msg">${msg||(ins.length?"Can't make it? Tap the name up top to take it off.":"")}</div>`;
+    box.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>toggle(b.dataset.n));
+    $("#rv-add").onclick=()=>{const n=clean(prompt("Name (first name + last initial):"));if(!n)return;
+      const hit=roster.find(r=>r.toLowerCase()===n.toLowerCase());
+      if(!hit){roster.push(n);roster.sort((a,b)=>a.localeCompare(b));extra.push(n);store.set("poker-extra-names",extra.join("|"))}
+      set(hit||n,"in")};
   }
-  async function post(n,status){
-    const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({game,name:n,status})});
-    if(!r.ok)throw 0; take((await r.json()).responses);
+  async function set(n,status){
+    draw("Saving…");
+    try{const r=await fetch(API,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({game,name:n,status})});
+      if(!r.ok)throw 0; take((await r.json()).responses);
+      draw(status==="in"?`${n} is in.`:`${n} is off the list.`);
+    }catch(e){draw("Couldn't save. Try again, or just text Kyler.")}
   }
-  async function send(n,forceIn){
-    const goingIn=forceIn||!(n===mine&&isIn(n));
-    const prev=mine; mine=goingIn?n:""; draw("Saving…");
-    try{
-      if(prev&&prev!==n) await post(prev,"out");
-      await post(n,goingIn?"in":"out"); store.set(key,mine); draw(goingIn?"See you there.":"No worries, you're off the list.");
-    }catch(e){mine=prev; draw("Couldn't save. Try again, or just text Kyler.")}
-  }
-  async function hostToggle(n){
-    const st=isIn(n)?"out":"in"; draw("Saving…");
-    try{await post(n,st);draw(st==="in"?`${n} is in.`:`${n} is off the list.`)}catch(e){draw("Couldn't save. Try again.")}
-  }
-  async function bulk(){
-    const raw=$("#rv-bulk").value.split(/[\n,]+/).map(clean).filter(Boolean);
-    if(!raw.length)return draw("Type at least one name.");
-    // match to existing names, ignoring case, so "jon d." lands on "Jon D."
-    const names=[...new Set(raw.map(n=>roster.find(r=>r.toLowerCase()===n.toLowerCase())||n))];
-    draw("Saving…"); const bad=[];
-    for(const n of names){try{await post(n,"in");if(!roster.includes(n)){roster.push(n);extra.push(n)}}catch(e){bad.push(n)}}
-    roster.sort((a,b)=>a.localeCompare(b)); store.set("poker-extra-names",extra.join("|"));
-    draw(bad.length?`Couldn't save: ${bad.join(", ")}. Try those again.`:`Added ${names.length}: ${names.join(", ")}.`);
-  }
+  const toggle=n=>set(n,isIn(n)?"out":"in");
   draw();
   fetch(API+"?game="+game,{cache:"no-store"}).then(r=>r.ok?r.json():null).then(d=>{take(d&&d.responses);draw()}).catch(()=>{loaded=true;draw()});
 }
