@@ -231,8 +231,6 @@ function rsvp(game){
   const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
   const clean=t=>String(t||"").replace(/[<>"&]/g,"").replace(/\s+/g," ").trim().slice(0,30);
   const key="poker-rsvp-"+game;
-  const hk=location.hash.match(/k=([0-9a-f]{32})/); if(hk){store.set("poker-host-key",hk[1]);history.replaceState(null,"",location.pathname)}
-  let host=!!store.get("poker-host-key")&&store.get("poker-host-key")!=="skip";
   let mine=store.get(key)||"", hostMode=false, going={}, loaded=false;
   const isIn=n=>going[n.toLowerCase()]?.status==="in";
   function take(list){
@@ -244,7 +242,7 @@ function rsvp(game){
     const ins=roster.filter(isIn), rest=roster.filter(n=>!isIn(n));
     const guests=ins.reduce((t,n)=>t+(going[n.toLowerCase()].guests||0),0), total=ins.length+guests;
     const chip=(n,on)=>`<button class="rv-n ${on?"on":""}" data-n="${esc(n)}">${on?"✓ ":""}${esc(n)}</button>`;
-    const q=hostMode?"Host mode: tap a name to add or remove them."
+    const q=hostMode?"Tap names to add or remove people."
       :mine&&isIn(mine)?`You're in, ${esc(mine.split(" ")[0])} 👍`:"Coming? Tap your name.";
     box.innerHTML=`<div class="rv-in">
         <div class="rv-h">${loaded?(total?`✓ ${total} coming${guests?` (incl. ${guests} guest${guests>1?"s":""})`:""}`:"No one's in yet"):"Loading who's in…"}</div>
@@ -253,10 +251,10 @@ function rsvp(game){
       <div class="rv-q">${q}</div>
       <div class="rv-names">${rest.map(n=>chip(n,false)).join("")}
         <button class="rv-n add" id="rv-add">+ Not listed</button></div>
-      ${hostMode?`<div class="rv-host"><textarea id="rv-bulk" rows="3" placeholder="Add several people who texted you: one per line or separated by commas"></textarea>
+      ${hostMode?`<div class="rv-host"><textarea id="rv-bulk" rows="3" placeholder="Or type names: one per line or separated by commas"></textarea>
         <button class="rv-btn" id="rv-bulk-go">Mark them in</button></div>`:""}
       <div class="rv-msg">${msg||(hostMode?"":mine&&isIn(mine)?"Can't make it? Tap your name up top.":"")}</div>
-      <button class="rv-link" id="rv-host">${hostMode?"Done adding people":host?"Host: add people who texted you":"Host"}</button>`;
+      <button class="rv-link" id="rv-host">${hostMode?"Done":"RSVP for several people"}</button>`;
     box.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>{const n=b.dataset.n;
       if(hostMode)return hostToggle(n);
       if(isIn(n)){ if(n!==mine&&!confirm(`Take ${n} off the list? Only do this if you're ${n.split(" ")[0]}.`))return;
@@ -265,15 +263,7 @@ function rsvp(game){
     $("#rv-add").onclick=()=>{const n=clean(prompt(hostMode?"Name (first name + last initial):":"Your name (first name + last initial):"));
       if(!n)return; if(!roster.includes(n)){roster.push(n);roster.sort((a,b)=>a.localeCompare(b));extra.push(n);store.set("poker-extra-names",extra.join("|"))}
       hostMode?post(n,"in").then(()=>draw(`${n} is in.`)).catch(()=>draw("Couldn't save. Try again.")):send(n,true)};
-    $("#rv-host").onclick=async()=>{
-      if(!host){const k=(prompt("Host key:")||"").trim();if(!k)return;
-        if(!/^[0-9a-f]{32}$/.test(k))return draw("That's not the host key.");
-        draw("Checking…");
-        try{const r=await fetch("/api/games?draft=1",{headers:{"x-host-key":k},cache:"no-store"});
-          if(r.status===403)return draw("That's not the host key.");
-          if(!r.ok)throw 0;}catch(e){return draw("Couldn't check the key. Try again.")}
-        store.set("poker-host-key",k);host=true;}
-      hostMode=!hostMode;draw()};
+    $("#rv-host").onclick=()=>{hostMode=!hostMode;draw()};
     if(hostMode)$("#rv-bulk-go").onclick=bulk;
   }
   async function post(n,status){
