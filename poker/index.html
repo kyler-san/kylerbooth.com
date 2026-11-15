@@ -103,6 +103,7 @@
   .rv-in{background:rgba(231,195,106,.08);border:1px solid rgba(231,195,106,.35);border-radius:14px;padding:10px 10px 12px;margin-bottom:14px}
   .rv-h{font-size:13px;color:var(--gold);font-weight:800;letter-spacing:.02em}
   .rv-in .rv-names{margin-top:8px}
+  .more-link{display:block;margin:10px auto 4px;background:none;border:0;color:var(--muted);text-decoration:underline;font:12px Inter,sans-serif;cursor:pointer}
   footer{text-align:center;color:var(--muted);font-size:12px;margin-top:28px}
 </style>
 </head>
@@ -243,7 +244,7 @@ function rsvp(game){
       <div class="rv-q">Coming? Tap your name, and anyone else who's in.</div>
       <div class="rv-names">${rest.map(n=>chip(n,false)).join("")}
         <button class="rv-n add" id="rv-add">+ Not listed</button></div>
-      <div class="rv-msg">${msg||(ins.length?"Can't make it? Tap the name up top to take it off.":"")}</div>`;
+      <div class="rv-msg">${msg||""}</div>`;
     box.querySelectorAll("[data-n]").forEach(b=>b.onclick=()=>toggle(b.dataset.n));
     $("#rv-add").onclick=()=>{const n=clean(prompt("Name (first name + last initial):"));if(!n)return;
       const hit=roster.find(r=>r.toLowerCase()===n.toLowerCase());
@@ -278,7 +279,7 @@ function spark(run){
     <polyline fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" points="${xy.map(p=>p.join(",")).join(" ")}"/></svg>`;
 }
 
-$("#board").innerHTML = players.map((p,i)=>`
+const row=(p,i)=>`
   <div class="row">
     <div class="rank">${i===0?"👑":i+1}</div>
     <div><div class="name">${p.name}</div>
@@ -295,8 +296,16 @@ $("#board").innerHTML = players.map((p,i)=>`
       </div>
       ${spark(p.run)}
     </div>
-  </div>`).join("");
-document.querySelectorAll(".row").forEach(r=>r.onclick=()=>r.classList.toggle("open"));
+  </div>`;
+let showAll=false;
+function drawBoard(){
+  const list=showAll?players:players.filter(p=>p.net>0), hidden=players.length-list.length;
+  $("#board").innerHTML=list.map(row).join("")+
+    (hidden||showAll?`<button class="more-link" id="more">${showAll?"Show winners only":"Full standings"}</button>`:"");
+  document.querySelectorAll("#board .row").forEach(r=>r.onclick=()=>r.classList.toggle("open"));
+  const m=$("#more"); if(m)m.onclick=()=>{showAll=!showAll;drawBoard()};
+}
+drawBoard();
 
 const by=(f,dir=-1)=>[...players].sort((a,b)=>dir*(f(a)-f(b)))[0];
 const bestNight = players.map(p=>({p,v:p.best})).sort((a,b)=>b.v-a.v)[0];
