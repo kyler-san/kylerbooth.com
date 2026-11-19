@@ -150,7 +150,7 @@
 /* ===== DATA — add a new game at the top of the list after each night =====
    in  = total buy-ins (incl. rebuys), out = chips cashed out. */
 const SEASON = "Since May 9, 2026";
-const UPDATED = "Nov 18, 2026";
+const UPDATED = "Nov 19, 2026";
 const BASE_GAMES = [
   { date:"2026-11-17", players:[
     ["Jake Dav.",50,95.75],["Chris C.",25,55.75],["Jon D.",25,35],["David F.",25,29.25],["David S.",25,27.75],
@@ -301,8 +301,10 @@ const row=(p,i)=>`
   </div>`;
 let showAll=false;
 function drawBoard(){
-  const list=showAll?players:players.filter(p=>p.net>0), hidden=players.length-list.length;
+  const ranked=players.filter(p=>p.nights>=2);
+  const list=showAll?ranked:ranked.filter(p=>p.net>0), hidden=ranked.length-list.length;
   $("#board").innerHTML=list.map(row).join("")+
+    `<div class="more-link" style="text-decoration:none;cursor:default;text-align:center">Ranked: players with 2+ nights</div>`+
     (hidden||showAll?`<button class="more-link" id="more">${showAll?"Show winners only":"Full standings"}</button>`:"");
   document.querySelectorAll("#board .row").forEach(r=>r.onclick=()=>r.classList.toggle("open"));
   const m=$("#more"); if(m)m.onclick=()=>{showAll=!showAll;drawBoard()};
